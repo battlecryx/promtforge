@@ -8,29 +8,51 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
     const { t, lang } = useLanguage();
     const [input, setInput] = useState('');
     const [outcome, setOutcome] = useState('');
-    const [selectedModel, setSelectedModel] = useState('claude');
     const [optimized, setOptimized] = useState('');
     const [coachNotes, setCoachNotes] = useState('');
     const [analysis, setAnalysis] = useState(null);
+    const [testResponse, setTestResponse] = useState('');
     const [loading, setLoading] = useState(false);
+    const [testing, setTesting] = useState(false);
     const [activeTab, setActiveTab] = useState('result');
     const [copyFeedback, setCopyFeedback] = useState(false);
     const inputRef = useRef(null);
 
-    // Pick up shared input from templates
+    // Handlers to auto-save to localStorage
+    const handleInput = (val) => {
+        setInput(val);
+        try { localStorage.setItem('pm_autosave_input', val); } catch (e) {}
+    };
+
+    const handleOutcome = (val) => {
+        setOutcome(val);
+        try { localStorage.setItem('pm_autosave_outcome', val); } catch (e) {}
+    };
+
+    // Pick up shared input from templates or local storage on mount
     useEffect(() => {
         if (sharedInput) {
-            setInput(sharedInput);
+            handleInput(sharedInput);
             clearSharedInput();
             inputRef.current?.focus();
+        } else if (!input) {
+            try {
+                const savedIn = localStorage.getItem('pm_autosave_input');
+                const savedOut = localStorage.getItem('pm_autosave_outcome');
+                if (savedIn) setInput(savedIn);
+                if (savedOut) setOutcome(savedOut);
+            } catch (e) {}
         }
-    }, [sharedInput, clearSharedInput]);
+    }, [sharedInput, clearSharedInput, input]);
 
-    const getApiCall = useCallback(() => {
-        if (apiKeys.claude) return (sys, msg) => callClaude(sys, msg, apiKeys.claude, config.models.claude.id);
-        if (apiKeys.google) return (sys, msg) => callGemini(sys, msg, apiKeys.google, config.models.gemini.id);
-        return null;
-    }, [apiKeys, config.models]);
+    const quickTemplates = [
+        { label: lang === 'es' ? '✍️ Copywriting' : '✍️ Copywriting', text: 'Write a persuasive landing page copy for a SaaS product.' },
+        { label: lang === 'es' ? '💻 Código' : '💻 Coding', text: 'Write a React functional component that fetches data from an API and displays it in a table.' },
+        { label: lang === 'es' ? '📊 Análisis' : '📊 Analysis', text: 'Analyze this dataset and provide the top 3 trends and actionable insights.' }
+    ];
+
+    // No need for getApiCall anymore since we use callModel uniformly
+
 
     // ─── Optimize ───
     const handleOptimize = useCallback(async () => {
@@ -39,17 +61,38 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
         setOptimized('');
         setCoachNotes('');
         setAnalysis(null);
+        setTestResponse('');
         setActiveTab('result');
         try {
             const sysPrompt = buildOptimizationPrompt(config.techniqueBank, outcome.trim());
-            const modelConfig = config.models[selectedModel];
-            const result = await callModel(modelConfig.provider, sysPrompt, `Original prompt:\n\n"${input.trim()}"`, apiKeys, modelConfig.id);
+            const activeProv = config.activeProvider;
+            const modelId = config.models[activeProv]?.id;
+            
+            const result = await callModel(activeProv, sysPrompt, `Original prompt:\n\n"${input.trim()}"`, apiKeys, modelId);
             setOptimized(result);
         } catch (e) {
             setOptimized('❌ Error: ' + e.message);
         }
         setLoading(false);
-    }, [input, outcome, config.techniqueBank, getApiCall]);
+    }, [input, outcome, config.techniqueBank, config.activeProvider, config.models, apiKeys]);
+
+    // ─── Test Drive ───
+    const handleTest = useCallback(async () => {
+        if (!optimized) return;
+        setTesting(true);
+        setTestResponse('');
+        setActiveTab('test');
+        try {
+            const activeProv = config.activeProvider;
+            const modelId = config.models[activeProv]?.id;
+            // Sending the optimized prompt as the user message with no system prompt
+            const result = await callModel(activeProv, "You are a helpful AI assistant. Answer the following prompt directly and accurately.", optimized, apiKeys, modelId);
+            setTestResponse(result);
+        } catch (e) {
+            setTestResponse('❌ Error: ' + e.message);
+        }
+        setTesting(false);
+    }, [optimized, config.activeProvider, config.models, apiKeys]);
 
     // ─── Coach ───
     const handleCoach = useCallback(async () => {
@@ -57,24 +100,26 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
         setActiveTab('coach');
         setCoachNotes('⏳ ' + t('optimizer.coachAnalyzing'));
         try {
-            const modelConfig = config.models[selectedModel];
-            const result = await callModel(modelConfig.provider, COACH_SYSTEM, `Original:\n"${input}"\n\nOptimized:\n"${optimized}"`, apiKeys, modelConfig.id);
+            const activeProv = config.activeProvider;
+            const modelId = config.models[activeProv]?.id;
+            const result = await callModel(activeProv, COACH_SYSTEM, `Original:\n"${input}"\n\nOptimized:\n"${optimized}"`, apiKeys, modelId);
             setCoachNotes(result);
         } catch (e) { setCoachNotes('❌ Error: ' + e.message); }
-    }, [input, optimized, config.models, selectedModel, apiKeys, t]);
+    }, [input, optimized, config.models, config.activeProvider, apiKeys, t]);
 
     // ─── Analyze ───
     const handleAnalyze = useCallback(async () => {
         setActiveTab('analysis');
         setAnalysis(null);
         try {
-            const modelConfig = config.models[selectedModel];
-            const raw = await callModel(modelConfig.provider, ANALYSIS_SYSTEM, `Analyze:\n"${optimized || input}"`, apiKeys, modelConfig.id);
+            const activeProv = config.activeProvider;
+            const modelId = config.models[activeProv]?.id;
+            const raw = await callModel(activeProv, ANALYSIS_SYSTEM, `Analyze:\n"${optimized || input}"`, apiKeys, modelId);
             setAnalysis(JSON.parse(raw.replace(/```json|```/g, '').trim()));
         } catch {
             setAnalysis({ score: 0, weaknesses: ['Analysis error'], strengths: [], suggestions: [] });
         }
-    }, [input, optimized, config.models, selectedModel, apiKeys]);
+    }, [input, optimized, config.models, config.activeProvider, apiKeys]);
 
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
@@ -82,7 +127,7 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
         setTimeout(() => setCopyFeedback(false), 1500);
     };
 
-    const noApiKey = !apiKeys.claude && !apiKeys.google;
+    const noApiKey = !apiKeys[config.activeProvider];
     const wordCount = input.trim().split(/\s+/).filter(Boolean).length;
 
     return (
@@ -90,9 +135,24 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
             {/* No API Key Warning */}
             {noApiKey && (
                 <motion.div className="info-box info-box-amber" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    ⚠️ {lang === 'es' ? 'Configura al menos una API key en Ajustes para usar el optimizador.' : 'Configure at least one API key in Settings to use the optimizer.'}
+                    ⚠️ {lang === 'es' ? 'Configura la API key de tu proveedor activo en el menú lateral para optimizar.' : 'Configure the API key for your active provider in the sidebar to optimize.'}
                 </motion.div>
             )}
+
+            {/* Quick Templates */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '4px', overflowX: 'auto', paddingBottom: '4px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', alignSelf: 'center', marginRight: '4px' }}>{lang === 'es' ? 'Plantillas Rápidas:' : 'Quick Templates:'}</span>
+                {quickTemplates.map((t, i) => (
+                    <button 
+                        key={i} 
+                        className="btn btn-sm" 
+                        style={{ fontSize: '11px', padding: '4px 8px', whiteSpace: 'nowrap', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', background: 'rgba(255,255,255,0.03)' }}
+                        onClick={() => handleInput(t.text)}
+                    >
+                        {t.label}
+                    </button>
+                ))}
+            </div>
 
             {/* Input Card */}
             <motion.div className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
@@ -101,7 +161,7 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
                     ref={inputRef}
                     className="input textarea"
                     value={input}
-                    onChange={e => setInput(e.target.value)}
+                    onChange={e => handleInput(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleOptimize(); }}
                     placeholder={t('optimizer.inputPlaceholder')}
                     rows={5}
@@ -113,7 +173,7 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
                     <textarea
                         className="input textarea"
                         value={outcome}
-                        onChange={e => setOutcome(e.target.value)}
+                        onChange={e => handleOutcome(e.target.value)}
                         placeholder={t('optimizer.outcomePlaceholder')}
                         rows={2}
                         style={{ minHeight: '60px' }}
@@ -122,12 +182,13 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <select className="input input-mono" style={{ width: 'auto', padding: '8px 12px', fontSize: '12px' }} value={selectedModel} onChange={e => setSelectedModel(e.target.value)}>
-                            {Object.entries(config.models).map(([key, model]) => (
-                                <option key={key} value={key}>{model.label}</option>
-                            ))}
-                        </select>
-                        <span className="char-counter">{input.length} {t('optimizer.chars')} · {wordCount} {t('optimizer.words')}</span>
+                        <div style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>{lang === 'es' ? 'MODELO ACTIVO:' : 'ACTIVE MODEL:'}</span>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                {config.activeProvider.toUpperCase()} — {config.models[config.activeProvider]?.id || 'Default'}
+                            </span>
+                        </div>
+                        <span className="char-counter" style={{ marginLeft: '8px' }}>{input.length} {t('optimizer.chars')} · {wordCount} {t('optimizer.words')}</span>
                     </div>
                     <motion.button
                         className="btn btn-primary"
@@ -158,6 +219,7 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
                                 { id: 'result', label: `⚡ ${t('optimizer.resultTab')}`, action: () => setActiveTab('result') },
                                 { id: 'coach', label: `🎓 ${t('optimizer.coachTab')}`, action: handleCoach },
                                 { id: 'analysis', label: `📊 ${t('optimizer.analysisTab')}`, action: handleAnalyze },
+                                { id: 'test', label: `💬 ${lang === 'es' ? 'Probar Prompt' : 'Test Drive'}`, action: handleTest },
                             ].map(tab => (
                                 <button key={tab.id} className={`tab ${activeTab === tab.id ? 'active' : ''}`} onClick={tab.action}>
                                     {tab.label}
@@ -174,10 +236,22 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
                                             {loading ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {t('optimizer.applying')}</span> : optimized}
                                         </div>
                                         {optimized && !loading && (
-                                            <div className="btn-group" style={{ marginTop: '14px' }}>
+                                            <div className="btn-group" style={{ marginTop: '14px', flexWrap: 'wrap' }}>
                                                 <motion.button className="btn btn-sm btn-primary" onClick={() => copyToClipboard(optimized)} whileTap={{ scale: 0.95 }}>
                                                     {copyFeedback ? `✅ ${t('common.copied')}` : `📋 ${t('optimizer.copyBtn')}`}
                                                 </motion.button>
+                                                <motion.button className="btn btn-sm btn-primary" onClick={handleTest} whileTap={{ scale: 0.95 }}>
+                                                    🟢 {lang === 'es' ? 'Test Launch' : 'Test Launch'}
+                                                </motion.button>
+                                                <a 
+                                                    href={`data:text/markdown;charset=utf-8,${encodeURIComponent(optimized)}`} 
+                                                    download={`optimized-prompt-${Date.now()}.md`}
+                                                    style={{ textDecoration: 'none' }}
+                                                >
+                                                    <motion.button className="btn btn-sm" whileTap={{ scale: 0.95 }}>
+                                                        📄 Export .md
+                                                    </motion.button>
+                                                </a>
                                                 <motion.button className="btn btn-sm" onClick={() => saveToLibrary(input, optimized)} whileTap={{ scale: 0.95 }}>
                                                     💾 {t('optimizer.saveBtn')}
                                                 </motion.button>
@@ -186,6 +260,15 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
                                                 </motion.button>
                                             </div>
                                         )}
+                                    </motion.div>
+                                )}
+
+                                {/* Test Drive tab */}
+                                {activeTab === 'test' && (
+                                    <motion.div key="test" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)', padding: '16px', fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', maxHeight: '500px', overflowY: 'auto' }}>
+                                            {testing ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {lang === 'es' ? 'Esperando respuesta de la IA...' : 'Waiting for AI response...'}</span> : testResponse}
+                                        </div>
                                     </motion.div>
                                 )}
 

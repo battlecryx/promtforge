@@ -2,17 +2,11 @@ import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../i18n/LanguageContext';
 
-const TABS = ['api', 'account', 'models', 'lang'];
+const TABS = ['account', 'lang'];
 
-const MODEL_SUGGESTIONS = {
-    anthropic: ['claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest', 'claude-3-opus-latest', 'claude-3-5-haiku-latest'],
-    google: ['gemini-3.1-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'],
-    openai: ['gpt-4.5-preview', 'gpt-4o', 'gpt-4o-mini', 'o3-mini', 'o1-preview', 'o1-mini']
-};
-
-export default function SettingsPanel({ apiKeys, saveApiKeys, config, saveConfig, user, onUpdateEmail, onUpdatePassword, onClose }) {
+export default function SettingsPanel({ config, saveConfig, user, onUpdateEmail, onUpdatePassword, onClose }) {
     const { t, lang, setLang } = useLanguage();
-    const [activeTab, setActiveTab] = useState('api');
+    const [activeTab, setActiveTab] = useState('account');
     const [saveFeedback, setSaveFeedback] = useState('');
     const emailRef = useRef(null);
     const pwRef = useRef(null);
@@ -20,21 +14,6 @@ export default function SettingsPanel({ apiKeys, saveApiKeys, config, saveConfig
     const showFeedback = (msg) => {
         setSaveFeedback(msg);
         setTimeout(() => setSaveFeedback(''), 2000);
-    };
-
-    const handleKeyChange = (provider, value) => {
-        const updated = { ...apiKeys, [provider]: value };
-        saveApiKeys(updated);
-        showFeedback(lang === 'es' ? '✅ Guardado' : '✅ Saved');
-    };
-
-    const handleModelChange = (key, newId) => {
-        const newConfig = {
-            ...config,
-            models: { ...config.models, [key]: { ...config.models[key], id: newId } },
-        };
-        saveConfig(newConfig);
-        showFeedback(lang === 'es' ? '✅ Modelo actualizado' : '✅ Model updated');
     };
 
     return (
@@ -54,7 +33,7 @@ export default function SettingsPanel({ apiKeys, saveApiKeys, config, saveConfig
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                     >
-                        {tab === 'api' ? '🔑' : tab === 'account' ? '👤' : tab === 'models' ? '🤖' : '🌐'}{' '}
+                        {tab === 'account' ? '👤' : '🌐'}{' '}
                         {t(`settings.${tab}Tab`)}
                     </motion.button>
                 ))}
@@ -64,57 +43,6 @@ export default function SettingsPanel({ apiKeys, saveApiKeys, config, saveConfig
             {saveFeedback && (
                 <motion.div className="info-box info-box-green" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}>
                     {saveFeedback}
-                </motion.div>
-            )}
-
-            {/* ─── API Keys ─── */}
-            {activeTab === 'api' && (
-                <motion.div className="card flex-col gap-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <div>
-                        <span className="label">🔑 {t('settings.claudeKey')}</span>
-                        <input
-                            className="input input-mono"
-                            type="password"
-                            value={apiKeys.claude || ''}
-                            onChange={e => handleKeyChange('claude', e.target.value)}
-                            placeholder={t('settings.claudeKeyPlaceholder')}
-                        />
-                        <p className="text-xs text-dim" style={{ marginTop: '6px' }}>{t('settings.claudeKeyHelp')}</p>
-                    </div>
-
-                    <div>
-                        <span className="label">🔑 {t('settings.googleKey')}</span>
-                        <input
-                            className="input input-mono"
-                            type="password"
-                            value={apiKeys.google || ''}
-                            onChange={e => handleKeyChange('google', e.target.value)}
-                            placeholder={t('settings.googleKeyPlaceholder')}
-                        />
-                        <p className="text-xs text-dim" style={{ marginTop: '6px' }}>
-                            {t('settings.googleKeyHelp')} <span style={{ color: 'var(--accent-green)' }}>aistudio.google.com</span>
-                        </p>
-                    </div>
-
-                    <div>
-                        <span className="label">🔑 {t('settings.openaiKey')}</span>
-                        <input
-                            className="input input-mono"
-                            type="password"
-                            value={apiKeys.openai || ''}
-                            onChange={e => handleKeyChange('openai', e.target.value)}
-                            placeholder={t('settings.openaiKeyPlaceholder')}
-                        />
-                        <p className="text-xs text-dim" style={{ marginTop: '6px' }}>
-                            {t('settings.openaiKeyHelp')} <span style={{ color: 'var(--accent-red)' }}>platform.openai.com</span>
-                        </p>
-                    </div>
-
-                    <div className="info-box info-box-accent">
-                        💡 {lang === 'es'
-                            ? 'Las API keys se guardan localmente en tu navegador. Nunca se envían a ningún servidor excepto al propio API provider.'
-                            : 'API keys are stored locally in your browser. They are never sent to any server except the API provider itself.'}
-                    </div>
                 </motion.div>
             )}
 
@@ -159,32 +87,6 @@ export default function SettingsPanel({ apiKeys, saveApiKeys, config, saveConfig
                                 {t('settings.changeBtn')}
                             </motion.button>
                         </div>
-                    </div>
-                </motion.div>
-            )}
-
-            {/* ─── Models ─── */}
-            {activeTab === 'models' && (
-                <motion.div className="card flex-col gap-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <p className="text-sm text-dim">{t('settings.modelTip')}</p>
-                    {Object.entries(config.models).map(([key, model]) => (
-                        <div key={key}>
-                            <span className="label">{model.label} — {t('settings.modelId')}</span>
-                            <input
-                                className="input input-mono"
-                                value={model.id}
-                                onChange={e => handleModelChange(key, e.target.value)}
-                                list={`suggestions-${key}`}
-                            />
-                            <datalist id={`suggestions-${key}`}>
-                                {MODEL_SUGGESTIONS[model.provider]?.map(sug => (
-                                    <option key={sug} value={sug} />
-                                ))}
-                            </datalist>
-                        </div>
-                    ))}
-                    <div className="info-box info-box-accent">
-                        💡 {lang === 'es' ? 'Ej: "claude-sonnet-4-20250514" o "gemini-2.5-flash"' : 'E.g.: "claude-sonnet-4-20250514" or "gemini-2.5-flash"'}
                     </div>
                 </motion.div>
             )}

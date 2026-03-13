@@ -7,8 +7,8 @@ import { buildOptimizationPrompt } from '../utils/prompts';
 export default function ArenaView({ config, apiKeys, arenaVotes, handleVote, saveToLibrary, sharedInput, clearSharedInput }) {
     const { t, lang } = useLanguage();
     const [input, setInput] = useState('');
-    const [modelA, setModelA] = useState('claude');
-    const [modelB, setModelB] = useState('gemini_flash');
+    const [modelA, setModelA] = useState('openai');
+    const [modelB, setModelB] = useState('anthropic');
     const [results, setResults] = useState({ modelA: '', modelB: '' });
     const [loading, setLoading] = useState({ modelA: false, modelB: false });
     const [copyFeedback, setCopyFeedback] = useState({});
@@ -28,10 +28,11 @@ export default function ArenaView({ config, apiKeys, arenaVotes, handleVote, sav
         setResults({ modelA: '', modelB: '' });
         setLoading({ modelA: true, modelB: true });
 
-        const requestModel = async (modelKey, setKey) => {
-            const modelConfig = config.models[modelKey];
+        const requestModel = async (provKey, setKey) => {
+            const engineId = config.models[provKey]?.id;
             try {
-                const res = await callModel(modelConfig.provider, sysPrompt, msg, apiKeys, modelConfig.id);
+                if (!apiKeys[provKey]) throw new Error(`Missing API Key for ${provKey}`);
+                const res = await callModel(provKey, sysPrompt, msg, apiKeys, engineId);
                 setResults(p => ({ ...p, [setKey]: res }));
             } catch (e) {
                 setResults(p => ({ ...p, [setKey]: '❌ Error: ' + e.message }));
@@ -51,7 +52,7 @@ export default function ArenaView({ config, apiKeys, arenaVotes, handleVote, sav
     };
 
     const isRunning = loading.modelA || loading.modelB;
-    const noApiKeys = !apiKeys.claude && !apiKeys.google && !apiKeys.openai;
+    const noApiKeys = !apiKeys.claude && !apiKeys.google && !apiKeys.openai && !apiKeys.perplexity && !apiKeys.xai;
 
     return (
         <div className="flex-col gap-md">
@@ -87,14 +88,17 @@ export default function ArenaView({ config, apiKeys, arenaVotes, handleVote, sav
                     { stateKey: 'modelA', selected: modelA, setter: setModelA },
                     { stateKey: 'modelB', selected: modelB, setter: setModelB }
                 ].map(({ stateKey, selected, setter }) => {
-                    const modelConfig = config.models[selected];
+                    const engineId = config.models[selected]?.id || 'Default';
                     const isModelLoading = loading[stateKey];
                     const modelResult = results[stateKey];
+                    // Pick a fallback color if not defined
+                    const colorMap = { openai: '#10a37f', anthropic: '#d97757', google: '#4285f4', perplexity: '#25ced1', xai: '#000000' };
+                    const dotColor = colorMap[selected] || '#fff';
                     return (
                         <motion.div
                             key={stateKey}
                             className="card"
-                            style={{ borderColor: modelResult ? modelConfig.color + '25' : undefined }}
+                            style={{ borderColor: modelResult ? dotColor + '25' : undefined }}
                             initial={{ opacity: 0, y: 15 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: stateKey === 'modelB' ? 0.1 : 0.05 }}
@@ -103,13 +107,13 @@ export default function ArenaView({ config, apiKeys, arenaVotes, handleVote, sav
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', justifyContent: 'space-between' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <motion.div
-                                        style={{ width: '12px', height: '12px', borderRadius: '50%', background: modelConfig.color }}
+                                        style={{ width: '12px', height: '12px', borderRadius: '50%', background: dotColor }}
                                         animate={isModelLoading ? { scale: [1, 1.3, 1] } : {}}
                                         transition={{ duration: 0.8, repeat: Infinity }}
                                     />
-                                    <select className="input input-mono" style={{ width: 'auto', padding: '4px 8px', fontSize: '13px', fontWeight: 700, color: modelConfig.color, border: 'none', background: 'transparent' }} value={selected} onChange={e => setter(e.target.value)}>
-                                        {Object.entries(config.models).map(([k, m]) => (
-                                            <option key={k} value={k}>{m.label}</option>
+                                    <select className="input input-mono" style={{ width: 'auto', padding: '4px 8px', fontSize: '12px', fontWeight: 700, color: dotColor, border: 'none', background: 'transparent' }} value={selected} onChange={e => setter(e.target.value)}>
+                                        {['openai', 'anthropic', 'google', 'perplexity', 'xai'].map(k => (
+                                            <option key={k} value={k}>{k.toUpperCase()} ({config.models[k]?.id || 'Default'})</option>
                                         ))}
                                     </select>
                                 </div>
@@ -126,7 +130,7 @@ export default function ArenaView({ config, apiKeys, arenaVotes, handleVote, sav
                                 <div className="btn-group" style={{ marginTop: '12px' }}>
                                     <motion.button
                                         className="btn btn-sm"
-                                        style={{ borderColor: modelConfig.color + '30', color: modelConfig.color }}
+                                        style={{ borderColor: dotColor + '30', color: dotColor }}
                                         onClick={() => handleVote(selected)}
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}

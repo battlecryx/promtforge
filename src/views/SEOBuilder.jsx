@@ -25,31 +25,72 @@ export default function SEOBuilder({ config, apiKeys, saveToLibrary }) {
         tone: 'professional',
         cta: '',
     });
-    const [selectedModel, setSelectedModel] = useState('claude');
     const [result, setResult] = useState('');
+    const [testResponse, setTestResponse] = useState('');
     const [loading, setLoading] = useState(false);
+    const [testing, setTesting] = useState(false);
+    const [activeTab, setActiveTab] = useState('result');
     const [copyFeedback, setCopyFeedback] = useState(false);
 
-    const updateField = (key, val) => setFields(p => ({ ...p, [key]: val }));
+    // Pick up saved fields from local storage on mount
+    useEffect(() => {
+        try {
+            const savedFields = localStorage.getItem('pm_autosave_seo_fields');
+            if (savedFields) {
+                setFields(JSON.parse(savedFields));
+            }
+        } catch (e) {}
+    }, []);
+
+    const updateField = (key, val) => {
+        setFields(p => {
+            const nextFields = { ...p, [key]: val };
+            try { localStorage.setItem('pm_autosave_seo_fields', JSON.stringify(nextFields)); } catch (e) {}
+            return nextFields;
+        });
+    };
 
     const applyPreset = (preset) => {
-        setFields(p => ({ ...p, ...PRESETS[preset] }));
+        const nextFields = { ...fields, ...PRESETS[preset] };
+        setFields(nextFields);
+        try { localStorage.setItem('pm_autosave_seo_fields', JSON.stringify(nextFields)); } catch (e) {}
     };
 
     const handleGenerate = useCallback(async () => {
         if (!fields.industry || !fields.keywords) return;
         setLoading(true);
         setResult('');
+        setTestResponse('');
+        setActiveTab('result');
         try {
             const seoPrompt = buildSEOPrompt({ ...fields, lang });
-            const modelConfig = config.models[selectedModel];
-            const res = await callModel(modelConfig.provider, 'You are an SEO expert. Follow the instructions precisely.', seoPrompt, apiKeys, modelConfig.id);
+            const activeProv = config.activeProvider;
+            const modelId = config.models[activeProv]?.id;
+            const res = await callModel(activeProv, 'You are an SEO expert. Follow the instructions precisely.', seoPrompt, apiKeys, modelId);
             setResult(res);
         } catch (e) {
             setResult('❌ Error: ' + e.message);
         }
         setLoading(false);
-    }, [fields, lang, apiKeys, config.models, selectedModel]);
+    }, [fields, lang, apiKeys, config.activeProvider, config.models]);
+
+    // ─── Test Drive ───
+    const handleTest = useCallback(async () => {
+        if (!result) return;
+        setTesting(true);
+        setTestResponse('');
+        setActiveTab('test');
+        try {
+            const activeProv = config.activeProvider;
+            const modelId = config.models[activeProv]?.id;
+            // Sending the result prompt as the user message with no system prompt
+            const res = await callModel(activeProv, "You are a helpful AI assistant. Answer the following prompt directly and accurately.", result, apiKeys, modelId);
+            setTestResponse(res);
+        } catch (e) {
+            setTestResponse('❌ Error: ' + e.message);
+        }
+        setTesting(false);
+    }, [result, config.activeProvider, config.models, apiKeys]);
 
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
@@ -57,14 +98,14 @@ export default function SEOBuilder({ config, apiKeys, saveToLibrary }) {
         setTimeout(() => setCopyFeedback(false), 1500);
     };
 
-    const noApiKey = !apiKeys.claude && !apiKeys.google && !apiKeys.openai;
+    const noApiKey = !apiKeys[config.activeProvider];
     const canGenerate = fields.industry.trim() && fields.keywords.trim() && !noApiKey;
 
     return (
         <div className="flex-col gap-md">
             {noApiKey && (
                 <motion.div className="info-box info-box-amber" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    ⚠️ {lang === 'es' ? 'Configura al menos una API key en Ajustes.' : 'Configure at least one API key in Settings.'}
+                    ⚠️ {lang === 'es' ? 'Configura la API key de tu proveedor activo en el menú lateral.' : 'Configure the API key for your active provider in the sidebar.'}
                 </motion.div>
             )}
 
@@ -136,11 +177,12 @@ export default function SEOBuilder({ config, apiKeys, saveToLibrary }) {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', flexWrap: 'wrap', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <select className="input input-mono" style={{ width: 'auto', padding: '8px 12px', fontSize: '12px' }} value={selectedModel} onChange={e => setSelectedModel(e.target.value)}>
-                            {Object.entries(config.models).map(([key, model]) => (
-                                <option key={key} value={key}>{model.label}</option>
-                            ))}
-                        </select>
+                        <div style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>{lang === 'es' ? 'MODELO ACTIVO:' : 'ACTIVE MODEL:'}</span>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                {config.activeProvider.toUpperCase()} — {config.models[config.activeProvider]?.id || 'Default'}
+                            </span>
+                        </div>
                     </div>
                     <motion.button
                         className="btn btn-primary"
@@ -164,22 +206,58 @@ export default function SEOBuilder({ config, apiKeys, saveToLibrary }) {
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.4 }}
                     >
-                        <div className="card-header">
-                            <span className="label label-accent">📊 {t('seo.resultTitle')}</span>
+                        <div className="tabs" style={{ marginBottom: 0 }}>
+                            {[
+                                { id: 'result', label: `⚡ ${t('optimizer.resultTab')}`, action: () => setActiveTab('result') },
+                                { id: 'test', label: `💬 ${lang === 'es' ? 'Probar Prompt' : 'Test Drive'}`, action: handleTest },
+                            ].map(tab => (
+                                <button key={tab.id} className={`tab ${activeTab === tab.id ? 'active' : ''}`} onClick={tab.action}>
+                                    {tab.label}
+                                </button>
+                            ))}
                         </div>
-                        <div className="code-block" style={{ maxHeight: '500px' }}>
-                            {loading ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {t('seo.generating')}</span> : result}
+
+                        <div style={{ padding: '18px' }}>
+                            <AnimatePresence mode="wait">
+                                {activeTab === 'result' && (
+                                    <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                        <div className="code-block" style={{ maxHeight: '500px' }}>
+                                            {loading ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {t('seo.generating')}</span> : result}
+                                        </div>
+                                        {result && !loading && (
+                                            <div className="btn-group" style={{ marginTop: '14px', flexWrap: 'wrap' }}>
+                                                <motion.button className="btn btn-sm btn-primary" onClick={() => copyToClipboard(result)} whileTap={{ scale: 0.95 }}>
+                                                    {copyFeedback ? `✅ ${t('common.copied')}` : `📋 ${t('optimizer.copyBtn')}`}
+                                                </motion.button>
+                                                <motion.button className="btn btn-sm btn-primary" onClick={handleTest} whileTap={{ scale: 0.95 }}>
+                                                    🟢 {lang === 'es' ? 'Test Launch' : 'Test Launch'}
+                                                </motion.button>
+                                                <a 
+                                                    href={`data:text/markdown;charset=utf-8,${encodeURIComponent(result)}`} 
+                                                    download={`seo-prompt-${Date.now()}.md`}
+                                                    style={{ textDecoration: 'none' }}
+                                                >
+                                                    <motion.button className="btn btn-sm" whileTap={{ scale: 0.95 }}>
+                                                        📄 Export .md
+                                                    </motion.button>
+                                                </a>
+                                                <motion.button className="btn btn-sm" onClick={() => saveToLibrary(`SEO: ${fields.industry} - ${fields.pageType}`, result, 'seo')} whileTap={{ scale: 0.95 }}>
+                                                    💾 {t('optimizer.saveBtn')}
+                                                </motion.button>
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                )}
+
+                                {activeTab === 'test' && (
+                                    <motion.div key="test" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)', padding: '16px', fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', maxHeight: '500px', overflowY: 'auto' }}>
+                                            {testing ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {lang === 'es' ? 'Esperando respuesta de la IA...' : 'Waiting for AI response...'}</span> : testResponse}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
-                        {result && !loading && (
-                            <div className="btn-group" style={{ marginTop: '14px' }}>
-                                <motion.button className="btn btn-sm btn-primary" onClick={() => copyToClipboard(result)} whileTap={{ scale: 0.95 }}>
-                                    {copyFeedback ? `✅ ${t('common.copied')}` : `📋 ${t('optimizer.copyBtn')}`}
-                                </motion.button>
-                                <motion.button className="btn btn-sm" onClick={() => saveToLibrary(`SEO: ${fields.industry} - ${fields.pageType}`, result, 'seo')} whileTap={{ scale: 0.95 }}>
-                                    💾 {t('optimizer.saveBtn')}
-                                </motion.button>
-                            </div>
-                        )}
                     </motion.div>
                 )}
             </AnimatePresence>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from './i18n/LanguageContext';
 import { DEFAULT_CONFIG } from './utils/prompts';
+import SidebarModelSelector from './components/SidebarModelSelector';
 import OptimizerView from './views/OptimizerView';
 import ArenaView from './views/ArenaView';
 import MediaStudio from './views/MediaStudio';
@@ -57,8 +58,8 @@ export default function App() {
     const [initialLoading, setInitialLoading] = useState(true);
 
     const [view, setView] = useState('optimize');
-    const [config, setConfig] = useState(DEFAULT_CONFIG);
-    const [apiKeys, setApiKeys] = useState({ claude: '', google: '', openai: '' });
+    const [config, setConfig] = useState({ ...DEFAULT_CONFIG, activeProvider: 'openai' });
+    const [apiKeys, setApiKeys] = useState({ claude: '', google: '', openai: '', perplexity: '', xai: '' });
     const [library, setLibrary] = useState([]);
     const [arenaVotes, setArenaVotes] = useState({});
     const [showSettings, setShowSettings] = useState(false);
@@ -74,7 +75,7 @@ export default function App() {
             const userData = lsGet(`pm_user_${session.email}`);
             if (userData) setUser(userData);
         }
-        setApiKeys(lsGet('pm_apikeys', { claude: '', google: '', openai: '' }));
+        setApiKeys(lsGet('pm_apikeys', { claude: '', google: '', openai: '', perplexity: '', xai: '' }));
         setLibrary(lsGet('pm_library', []));
         setArenaVotes(lsGet('pm_arena_votes', {}));
         const cfg = lsGet('pm_config');
@@ -298,6 +299,15 @@ export default function App() {
                         <h1>Prompt Master</h1>
                         <p>v1.0</p>
                     </div>
+                </div>
+
+                <div style={{ marginTop: '20px' }}>
+                    <SidebarModelSelector 
+                        apiKeys={apiKeys} 
+                        saveApiKeys={saveApiKeys} 
+                        config={config} 
+                        saveConfig={saveConfig} 
+                    />
                 </div>
 
                 <nav className="sidebar-nav">

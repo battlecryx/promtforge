@@ -6,7 +6,7 @@ import { callModel } from '../utils/api';
 export default function MediaStudio({ config, apiKeys, saveToLibrary }) {
     const { t, lang } = useLanguage();
     const [input, setInput] = useState('');
-    const [selectedModel, setSelectedModel] = useState('nano_banana');
+    const [selectedTarget, setSelectedTarget] = useState('nano_banana');
     
     // We treat Veo 3.1 differently since generating video directly in the browser via api key often needs server handling.
     // For Nano Banana, we try to use the textual completion returning a base64 encoded image or an image URL if the API supports it.
@@ -19,8 +19,7 @@ export default function MediaStudio({ config, apiKeys, saveToLibrary }) {
         setLoading(true);
         setResult(null);
         try {
-            const modelConfig = config.models[selectedModel];
-            const isVideo = selectedModel === 'veo';
+            const isVideo = selectedTarget === 'veo';
             
             // Text-to-Image / Video Script generation
             const promptContext = isVideo 
@@ -28,12 +27,15 @@ export default function MediaStudio({ config, apiKeys, saveToLibrary }) {
                 : `You are an expert prompt engineer for Nano Banana (Imagen). The user wants an image of: "${input}". Expand this into a highly detailed, comma-separated image generation prompt including style, lighting, and camera details. Return ONLY the prompt string.`;
 
             // First, optimize the prompt
+            const activeProv = config.activeProvider;
+            const engineId = config.models[activeProv]?.id;
+            
             const optimizedPrompt = await callModel(
-                modelConfig.provider, 
-                "You are an expert AI media prompter.", 
+                activeProv, 
+                "You are an expert AI media prompter. Follow the instructions precisely.", 
                 promptContext, 
                 apiKeys, 
-                config.models.gemini_pro.id // Use Pro for the smart reasoning part
+                engineId
             );
 
             if (isVideo) {
@@ -47,15 +49,15 @@ export default function MediaStudio({ config, apiKeys, saveToLibrary }) {
             setResult({ type: 'text', data: '❌ Error: ' + e.message });
         }
         setLoading(false);
-    }, [input, config.models, selectedModel, apiKeys]);
+    }, [input, config.activeProvider, config.models, selectedTarget, apiKeys]);
 
-    const noApiKey = !apiKeys.google && selectedModel !== 'veo';
+    const noApiKey = !apiKeys[config.activeProvider];
 
     return (
         <div className="flex-col gap-md">
             {noApiKey && (
                 <motion.div className="info-box info-box-amber" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    ⚠️ {lang === 'es' ? 'Configura tu API key de Google para usar Media Studio.' : 'Configure your Google API key to use Media Studio.'}
+                    ⚠️ {lang === 'es' ? 'Configura la API key de tu proveedor activo en el menú lateral.' : 'Configure the API key for your active provider in the sidebar.'}
                 </motion.div>
             )}
 
@@ -68,12 +70,17 @@ export default function MediaStudio({ config, apiKeys, saveToLibrary }) {
                     placeholder={t('media.promptPlaceholder')}
                     rows={4}
                 />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', flexWrap: 'wrap', gap: '8px' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', flexWrap: 'wrap', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <select className="input input-mono" style={{ width: 'auto', padding: '8px 12px', fontSize: '12px' }} value={selectedModel} onChange={e => setSelectedModel(e.target.value)}>
-                            {/* Filter only Media Models */}
+                        <div style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>{lang === 'es' ? 'MOTOR:' : 'ENGINE:'}</span>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>{config.activeProvider.toUpperCase()}</span>
+                        </div>
+                        <span style={{ fontSize: '16px', color: 'var(--text-tertiary)' }}>→</span>
+                        <select className="input input-mono" style={{ width: 'auto', padding: '8px 12px', fontSize: '12px' }} value={selectedTarget} onChange={e => setSelectedTarget(e.target.value)}>
+                            {/* Filter only Media Models targets */}
                             {['nano_banana', 'nano_banana_pro', 'veo'].map(key => (
-                                <option key={key} value={key}>{config.models[key].label}</option>
+                                <option key={key} value={key}>{config.models[key]?.label || key}</option>
                             ))}
                         </select>
                     </div>
@@ -100,7 +107,7 @@ export default function MediaStudio({ config, apiKeys, saveToLibrary }) {
                     >
                         <div className="card-header">
                             <span className="label label-accent">
-                                {selectedModel === 'veo' ? `🎬 ${t('media.videoPromptReady')}` : `🖼️ ${t('media.imageResult')}`}
+                                {selectedTarget === 'veo' ? `🎬 ${t('media.videoPromptReady')}` : `🖼️ ${t('media.imageResult')}`}
                             </span>
                         </div>
 
@@ -126,7 +133,7 @@ export default function MediaStudio({ config, apiKeys, saveToLibrary }) {
                                 <motion.button className="btn btn-sm btn-primary" onClick={() => navigator.clipboard.writeText(result.data)} whileTap={{ scale: 0.95 }}>
                                     📋 Copy
                                 </motion.button>
-                                <motion.button className="btn btn-sm" onClick={() => saveToLibrary(`[${selectedModel}]: ${input}`, result.data, 'media')} whileTap={{ scale: 0.95 }}>
+                                <motion.button className="btn btn-sm" onClick={() => saveToLibrary(`[${selectedTarget}]: ${input}`, result.data, 'media')} whileTap={{ scale: 0.95 }}>
                                     💾 {t('media.saveBtn')}
                                 </motion.button>
                             </div>
