@@ -67,13 +67,46 @@ export async function callGemini(systemPrompt, userMessage, apiKey, modelId = 'g
 }
 
 /**
+ * Call OpenAI API
+ */
+export async function callOpenAI(systemPrompt, userMessage, apiKey, modelId = 'gpt-4o') {
+    if (!apiKey) throw new Error('OpenAI API key not configured');
+
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+            model: modelId,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userMessage }
+            ],
+            max_tokens: 2048,
+        }),
+    });
+
+    if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`OpenAI API error ${res.status}: ${errBody || res.statusText}`);
+    }
+
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim() || 'No response received';
+}
+
+/**
  * Call the preferred model (auto-selects based on available keys)
  */
 export async function callModel(provider, systemPrompt, userMessage, apiKeys, models) {
-    if (provider === 'claude' || provider === 'anthropic') {
-        return callClaude(systemPrompt, userMessage, apiKeys.claude, models?.claude?.id);
-    } else if (provider === 'gemini' || provider === 'google') {
-        return callGemini(systemPrompt, userMessage, apiKeys.google, models?.gemini?.id);
+    if (provider === 'anthropic') {
+        return callClaude(systemPrompt, userMessage, apiKeys.claude, models);
+    } else if (provider === 'google') {
+        return callGemini(systemPrompt, userMessage, apiKeys.google, models);
+    } else if (provider === 'openai') {
+        return callOpenAI(systemPrompt, userMessage, apiKeys.openai, models);
     }
     throw new Error(`Unknown provider: ${provider}`);
 }

@@ -1,14 +1,16 @@
 import { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../i18n/LanguageContext';
-import { callClaude, callGemini } from '../utils/api';
+import { callModel } from '../utils/api';
 import { buildOptimizationPrompt } from '../utils/prompts';
 
 export default function ArenaView({ config, apiKeys, arenaVotes, handleVote, saveToLibrary, sharedInput, clearSharedInput }) {
     const { t, lang } = useLanguage();
     const [input, setInput] = useState('');
-    const [results, setResults] = useState({ claude: '', gemini: '' });
-    const [loading, setLoading] = useState({ claude: false, gemini: false });
+    const [modelA, setModelA] = useState('claude');
+    const [modelB, setModelB] = useState('gemini_flash');
+    const [results, setResults] = useState({ modelA: '', modelB: '' });
+    const [loading, setLoading] = useState({ modelA: false, modelB: false });
     const [copyFeedback, setCopyFeedback] = useState({});
 
     useEffect(() => {
@@ -23,31 +25,24 @@ export default function ArenaView({ config, apiKeys, arenaVotes, handleVote, sav
         const sysPrompt = buildOptimizationPrompt(config.techniqueBank);
         const msg = `Original prompt:\n\n"${input.trim()}"`;
 
-        setResults({ claude: '', gemini: '' });
-        setLoading({ claude: true, gemini: true });
+        setResults({ modelA: '', modelB: '' });
+        setLoading({ modelA: true, modelB: true });
 
-        // Claude
-        if (apiKeys.claude) {
-            callClaude(sysPrompt, msg, apiKeys.claude, config.models.claude.id)
-                .then(r => setResults(p => ({ ...p, claude: r })))
-                .catch(e => setResults(p => ({ ...p, claude: '❌ ' + e.message })))
-                .finally(() => setLoading(p => ({ ...p, claude: false })));
-        } else {
-            setResults(p => ({ ...p, claude: lang === 'es' ? '⚠️ Configura tu API key de Claude en Ajustes.' : '⚠️ Configure your Claude API key in Settings.' }));
-            setLoading(p => ({ ...p, claude: false }));
-        }
+        const requestModel = async (modelKey, setKey) => {
+            const modelConfig = config.models[modelKey];
+            try {
+                const res = await callModel(modelConfig.provider, sysPrompt, msg, apiKeys, modelConfig.id);
+                setResults(p => ({ ...p, [setKey]: res }));
+            } catch (e) {
+                setResults(p => ({ ...p, [setKey]: '❌ Error: ' + e.message }));
+            } finally {
+                setLoading(p => ({ ...p, [setKey]: false }));
+            }
+        };
 
-        // Gemini
-        if (apiKeys.google) {
-            callGemini(sysPrompt, msg, apiKeys.google, config.models.gemini.id)
-                .then(r => setResults(p => ({ ...p, gemini: r })))
-                .catch(e => setResults(p => ({ ...p, gemini: '❌ ' + e.message })))
-                .finally(() => setLoading(p => ({ ...p, gemini: false })));
-        } else {
-            setResults(p => ({ ...p, gemini: t('arena.noGeminiKey') }));
-            setLoading(p => ({ ...p, gemini: false }));
-        }
-    }, [input, config, apiKeys, lang, t]);
+        requestModel(modelA, 'modelA');
+        requestModel(modelB, 'modelB');
+    }, [input, config, apiKeys, modelA, modelB]);
 
     const copyTo = (key) => {
         navigator.clipboard.writeText(results[key]);
@@ -55,8 +50,8 @@ export default function ArenaView({ config, apiKeys, arenaVotes, handleVote, sav
         setTimeout(() => setCopyFeedback(p => ({ ...p, [key]: false })), 1500);
     };
 
-    const isRunning = loading.claude || loading.gemini;
-    const noApiKeys = !apiKeys.claude && !apiKeys.google;
+    const isRunning = loading.modelA || loading.modelB;
+    const noApiKeys = !apiKeys.claude && !apiKeys.google && !apiKeys.openai;
 
     return (
         <div className="flex-col gap-md">
@@ -88,53 +83,67 @@ export default function ArenaView({ config, apiKeys, arenaVotes, handleVote, sav
 
             {/* Side by Side */}
             <div className="grid-2">
-                {Object.entries(config.models).map(([key, model]) => (
-                    <motion.div
-                        key={key}
-                        className="card"
-                        style={{ borderColor: results[key] ? model.color + '25' : undefined }}
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: key === 'gemini' ? 0.1 : 0.05 }}
-                    >
-                        {/* Model Header */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                            <motion.div
-                                style={{ width: '12px', height: '12px', borderRadius: '50%', background: model.color }}
-                                animate={loading[key] ? { scale: [1, 1.3, 1] } : {}}
-                                transition={{ duration: 0.8, repeat: Infinity }}
-                            />
-                            <span style={{ fontSize: '14px', fontWeight: 700, color: model.color }}>{model.label}</span>
-                            {loading[key] && <span className="loading-spinner" />}
-                        </div>
-
-                        {/* Result */}
-                        <div className="code-block" style={{ minHeight: '140px', maxHeight: '320px', color: 'var(--text-secondary)' }}>
-                            {loading[key] ? t('arena.optimizing') : results[key] || t('arena.resultPlaceholder')}
-                        </div>
-
-                        {/* Actions */}
-                        {results[key] && !loading[key] && !results[key].startsWith('⚠️') && (
-                            <div className="btn-group" style={{ marginTop: '12px' }}>
-                                <motion.button
-                                    className="btn btn-sm"
-                                    style={{ borderColor: model.color + '30', color: model.color }}
-                                    onClick={() => handleVote(key)}
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                >
-                                    🏆 {t('arena.voteBtn')}
-                                </motion.button>
-                                <motion.button className="btn btn-sm btn-xs" onClick={() => copyTo(key)} whileTap={{ scale: 0.95 }}>
-                                    {copyFeedback[key] ? '✅' : '📋'}
-                                </motion.button>
-                                <motion.button className="btn btn-sm btn-xs" onClick={() => saveToLibrary(input, results[key], key)} whileTap={{ scale: 0.95 }}>
-                                    💾
-                                </motion.button>
+                {[
+                    { stateKey: 'modelA', selected: modelA, setter: setModelA },
+                    { stateKey: 'modelB', selected: modelB, setter: setModelB }
+                ].map(({ stateKey, selected, setter }) => {
+                    const modelConfig = config.models[selected];
+                    const isModelLoading = loading[stateKey];
+                    const modelResult = results[stateKey];
+                    return (
+                        <motion.div
+                            key={stateKey}
+                            className="card"
+                            style={{ borderColor: modelResult ? modelConfig.color + '25' : undefined }}
+                            initial={{ opacity: 0, y: 15 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: stateKey === 'modelB' ? 0.1 : 0.05 }}
+                        >
+                            {/* Model Header */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <motion.div
+                                        style={{ width: '12px', height: '12px', borderRadius: '50%', background: modelConfig.color }}
+                                        animate={isModelLoading ? { scale: [1, 1.3, 1] } : {}}
+                                        transition={{ duration: 0.8, repeat: Infinity }}
+                                    />
+                                    <select className="input input-mono" style={{ width: 'auto', padding: '4px 8px', fontSize: '13px', fontWeight: 700, color: modelConfig.color, border: 'none', background: 'transparent' }} value={selected} onChange={e => setter(e.target.value)}>
+                                        {Object.entries(config.models).map(([k, m]) => (
+                                            <option key={k} value={k}>{m.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {isModelLoading && <span className="loading-spinner" />}
                             </div>
-                        )}
-                    </motion.div>
-                ))}
+
+                            {/* Result */}
+                            <div className="code-block" style={{ minHeight: '140px', maxHeight: '320px', color: 'var(--text-secondary)' }}>
+                                {isModelLoading ? t('arena.optimizing') : modelResult || t('arena.resultPlaceholder')}
+                            </div>
+
+                            {/* Actions */}
+                            {modelResult && !isModelLoading && !modelResult.startsWith('⚠️') && !modelResult.startsWith('❌') && (
+                                <div className="btn-group" style={{ marginTop: '12px' }}>
+                                    <motion.button
+                                        className="btn btn-sm"
+                                        style={{ borderColor: modelConfig.color + '30', color: modelConfig.color }}
+                                        onClick={() => handleVote(selected)}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                    >
+                                        🏆 {t('arena.voteBtn')}
+                                    </motion.button>
+                                    <motion.button className="btn btn-sm btn-xs" onClick={() => copyTo(stateKey)} whileTap={{ scale: 0.95 }}>
+                                        {copyFeedback[stateKey] ? '✅' : '📋'}
+                                    </motion.button>
+                                    <motion.button className="btn btn-sm btn-xs" onClick={() => saveToLibrary(input, modelResult, selected)} whileTap={{ scale: 0.95 }}>
+                                        💾
+                                    </motion.button>
+                                </div>
+                            )}
+                        </motion.div>
+                    )
+                })}
             </div>
         </div>
     );

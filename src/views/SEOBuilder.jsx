@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../i18n/LanguageContext';
-import { callClaude, callGemini } from '../utils/api';
+import { callModel } from '../utils/api';
 import { buildSEOPrompt } from '../utils/prompts';
 
 const PAGE_TYPES = ['landing', 'blog', 'ecommerce', 'portfolio', 'saas', 'local'];
@@ -25,6 +25,7 @@ export default function SEOBuilder({ config, apiKeys, saveToLibrary }) {
         tone: 'professional',
         cta: '',
     });
+    const [selectedModel, setSelectedModel] = useState('claude');
     const [result, setResult] = useState('');
     const [loading, setLoading] = useState(false);
     const [copyFeedback, setCopyFeedback] = useState(false);
@@ -41,20 +42,14 @@ export default function SEOBuilder({ config, apiKeys, saveToLibrary }) {
         setResult('');
         try {
             const seoPrompt = buildSEOPrompt({ ...fields, lang });
-            let res;
-            if (apiKeys.claude) {
-                res = await callClaude('You are an SEO expert. Follow the instructions precisely.', seoPrompt, apiKeys.claude, config.models.claude.id);
-            } else if (apiKeys.google) {
-                res = await callGemini('You are an SEO expert. Follow the instructions precisely.', seoPrompt, apiKeys.google, config.models.gemini.id);
-            } else {
-                throw new Error('No API key configured');
-            }
+            const modelConfig = config.models[selectedModel];
+            const res = await callModel(modelConfig.provider, 'You are an SEO expert. Follow the instructions precisely.', seoPrompt, apiKeys, modelConfig.id);
             setResult(res);
         } catch (e) {
             setResult('❌ Error: ' + e.message);
         }
         setLoading(false);
-    }, [fields, lang, apiKeys, config.models]);
+    }, [fields, lang, apiKeys, config.models, selectedModel]);
 
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
@@ -62,7 +57,7 @@ export default function SEOBuilder({ config, apiKeys, saveToLibrary }) {
         setTimeout(() => setCopyFeedback(false), 1500);
     };
 
-    const noApiKey = !apiKeys.claude && !apiKeys.google;
+    const noApiKey = !apiKeys.claude && !apiKeys.google && !apiKeys.openai;
     const canGenerate = fields.industry.trim() && fields.keywords.trim() && !noApiKey;
 
     return (
@@ -139,7 +134,14 @@ export default function SEOBuilder({ config, apiKeys, saveToLibrary }) {
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <select className="input input-mono" style={{ width: 'auto', padding: '8px 12px', fontSize: '12px' }} value={selectedModel} onChange={e => setSelectedModel(e.target.value)}>
+                            {Object.entries(config.models).map(([key, model]) => (
+                                <option key={key} value={key}>{model.label}</option>
+                            ))}
+                        </select>
+                    </div>
                     <motion.button
                         className="btn btn-primary"
                         onClick={handleGenerate}

@@ -1,13 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../i18n/LanguageContext';
-import { callClaude, callGemini } from '../utils/api';
+import { callModel } from '../utils/api';
 import { buildOptimizationPrompt, COACH_SYSTEM, ANALYSIS_SYSTEM } from '../utils/prompts';
 
 export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedInput, clearSharedInput }) {
     const { t, lang } = useLanguage();
     const [input, setInput] = useState('');
     const [outcome, setOutcome] = useState('');
+    const [selectedModel, setSelectedModel] = useState('claude');
     const [optimized, setOptimized] = useState('');
     const [coachNotes, setCoachNotes] = useState('');
     const [analysis, setAnalysis] = useState(null);
@@ -34,8 +35,6 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
     // ─── Optimize ───
     const handleOptimize = useCallback(async () => {
         if (!input.trim()) return;
-        const apiCall = getApiCall();
-        if (!apiCall) return;
         setLoading(true);
         setOptimized('');
         setCoachNotes('');
@@ -43,7 +42,8 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
         setActiveTab('result');
         try {
             const sysPrompt = buildOptimizationPrompt(config.techniqueBank, outcome.trim());
-            const result = await apiCall(sysPrompt, `Original prompt:\n\n"${input.trim()}"`);
+            const modelConfig = config.models[selectedModel];
+            const result = await callModel(modelConfig.provider, sysPrompt, `Original prompt:\n\n"${input.trim()}"`, apiKeys, modelConfig.id);
             setOptimized(result);
         } catch (e) {
             setOptimized('❌ Error: ' + e.message);
@@ -54,29 +54,27 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
     // ─── Coach ───
     const handleCoach = useCallback(async () => {
         if (!optimized || !input) return;
-        const apiCall = getApiCall();
-        if (!apiCall) return;
         setActiveTab('coach');
         setCoachNotes('⏳ ' + t('optimizer.coachAnalyzing'));
         try {
-            const result = await apiCall(COACH_SYSTEM, `Original:\n"${input}"\n\nOptimized:\n"${optimized}"`);
+            const modelConfig = config.models[selectedModel];
+            const result = await callModel(modelConfig.provider, COACH_SYSTEM, `Original:\n"${input}"\n\nOptimized:\n"${optimized}"`, apiKeys, modelConfig.id);
             setCoachNotes(result);
         } catch (e) { setCoachNotes('❌ Error: ' + e.message); }
-    }, [input, optimized, getApiCall, t]);
+    }, [input, optimized, config.models, selectedModel, apiKeys, t]);
 
     // ─── Analyze ───
     const handleAnalyze = useCallback(async () => {
-        const apiCall = getApiCall();
-        if (!apiCall) return;
         setActiveTab('analysis');
         setAnalysis(null);
         try {
-            const raw = await apiCall(ANALYSIS_SYSTEM, `Analyze:\n"${optimized || input}"`);
+            const modelConfig = config.models[selectedModel];
+            const raw = await callModel(modelConfig.provider, ANALYSIS_SYSTEM, `Analyze:\n"${optimized || input}"`, apiKeys, modelConfig.id);
             setAnalysis(JSON.parse(raw.replace(/```json|```/g, '').trim()));
         } catch {
             setAnalysis({ score: 0, weaknesses: ['Analysis error'], strengths: [], suggestions: [] });
         }
-    }, [input, optimized, getApiCall]);
+    }, [input, optimized, config.models, selectedModel, apiKeys]);
 
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
@@ -123,7 +121,14 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                    <span className="char-counter">{input.length} {t('optimizer.chars')} · {wordCount} {t('optimizer.words')}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <select className="input input-mono" style={{ width: 'auto', padding: '8px 12px', fontSize: '12px' }} value={selectedModel} onChange={e => setSelectedModel(e.target.value)}>
+                            {Object.entries(config.models).map(([key, model]) => (
+                                <option key={key} value={key}>{model.label}</option>
+                            ))}
+                        </select>
+                        <span className="char-counter">{input.length} {t('optimizer.chars')} · {wordCount} {t('optimizer.words')}</span>
+                    </div>
                     <motion.button
                         className="btn btn-primary"
                         onClick={handleOptimize}

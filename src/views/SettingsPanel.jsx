@@ -4,6 +4,12 @@ import { useLanguage } from '../i18n/LanguageContext';
 
 const TABS = ['api', 'account', 'models', 'lang'];
 
+const MODEL_SUGGESTIONS = {
+    anthropic: ['claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest', 'claude-3-opus-latest', 'claude-3-5-haiku-latest'],
+    google: ['gemini-3.1-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'],
+    openai: ['gpt-4.5-preview', 'gpt-4o', 'gpt-4o-mini', 'o3-mini', 'o1-preview', 'o1-mini']
+};
+
 export default function SettingsPanel({ apiKeys, saveApiKeys, config, saveConfig, user, onUpdateEmail, onUpdatePassword, onClose }) {
     const { t, lang, setLang } = useLanguage();
     const [activeTab, setActiveTab] = useState('api');
@@ -90,6 +96,20 @@ export default function SettingsPanel({ apiKeys, saveApiKeys, config, saveConfig
                         </p>
                     </div>
 
+                    <div>
+                        <span className="label">🔑 {t('settings.openaiKey')}</span>
+                        <input
+                            className="input input-mono"
+                            type="password"
+                            value={apiKeys.openai || ''}
+                            onChange={e => handleKeyChange('openai', e.target.value)}
+                            placeholder={t('settings.openaiKeyPlaceholder')}
+                        />
+                        <p className="text-xs text-dim" style={{ marginTop: '6px' }}>
+                            {t('settings.openaiKeyHelp')} <span style={{ color: 'var(--accent-red)' }}>platform.openai.com</span>
+                        </p>
+                    </div>
+
                     <div className="info-box info-box-accent">
                         💡 {lang === 'es'
                             ? 'Las API keys se guardan localmente en tu navegador. Nunca se envían a ningún servidor excepto al propio API provider.'
@@ -154,7 +174,13 @@ export default function SettingsPanel({ apiKeys, saveApiKeys, config, saveConfig
                                 className="input input-mono"
                                 value={model.id}
                                 onChange={e => handleModelChange(key, e.target.value)}
+                                list={`suggestions-${key}`}
                             />
+                            <datalist id={`suggestions-${key}`}>
+                                {MODEL_SUGGESTIONS[model.provider]?.map(sug => (
+                                    <option key={sug} value={sug} />
+                                ))}
+                            </datalist>
                         </div>
                     ))}
                     <div className="info-box info-box-accent">

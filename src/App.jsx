@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from './i18n/LanguageContext';
 import { DEFAULT_CONFIG } from './utils/prompts';
 import OptimizerView from './views/OptimizerView';
-import SEOBuilder from './views/SEOBuilder';
 import ArenaView from './views/ArenaView';
+import MediaStudio from './views/MediaStudio';
 import TemplatesView from './views/TemplatesView';
 import LibraryView from './views/LibraryView';
 import SettingsPanel from './views/SettingsPanel';
@@ -23,25 +23,26 @@ const NAV_ITEMS = [
     { id: 'optimize', icon: '⚡', viewIcon: '⚡' },
     { id: 'seo', icon: '🔍', viewIcon: '🔍' },
     { id: 'arena', icon: '⚔️', viewIcon: '⚔️' },
+    { id: 'media', icon: '🎨', viewIcon: '🎨' },
     { id: 'templates', icon: '📋', viewIcon: '📋' },
     { id: 'library', icon: '📚', viewIcon: '📚' },
 ];
 
 const VIEW_TITLES = {
-    en: { optimize: 'Prompt Optimizer', seo: 'SEO Content Builder', arena: 'Model Arena', templates: 'Prompt Templates', library: 'Prompt Library' },
-    es: { optimize: 'Optimizador de Prompts', seo: 'SEO Content Builder', arena: 'Arena de Modelos', templates: 'Plantillas de Prompts', library: 'Librería de Prompts' },
+    en: { optimize: 'Prompt Optimizer', seo: 'SEO Content Builder', arena: 'Model Arena', media: 'Media Studio', templates: 'Prompt Templates', library: 'Prompt Library' },
+    es: { optimize: 'Optimizador de Prompts', seo: 'SEO Content Builder', arena: 'Arena de Modelos', media: 'Media Studio', templates: 'Plantillas de Prompts', library: 'Librería de Prompts' },
 };
 
 const VIEW_DESCS = {
-    en: { optimize: 'Transform any prompt into a professional-grade one', seo: 'Generate SEO-optimized content prompts', arena: 'Compare Claude vs Gemini side by side', templates: 'Ready-to-use prompts by category', library: 'Your saved and optimized prompts' },
-    es: { optimize: 'Transforma cualquier prompt en uno profesional', seo: 'Genera prompts optimizados para SEO', arena: 'Compara Claude vs Gemini lado a lado', templates: 'Prompts listos para usar por categoría', library: 'Tus prompts guardados y optimizados' },
+    en: { optimize: 'Transform any prompt into a professional-grade one', seo: 'Generate SEO-optimized content prompts', arena: 'Compare Claude vs Gemini side by side', media: 'Generate AI images & video scripts', templates: 'Ready-to-use prompts by category', library: 'Your saved and optimized prompts' },
+    es: { optimize: 'Transforma cualquier prompt en uno profesional', seo: 'Genera prompts optimizados para SEO', arena: 'Compara Claude vs Gemini lado a lado', media: 'Genera imágenes AI y scripts de vídeo', templates: 'Prompts listos para usar por categoría', library: 'Tus prompts guardados y optimizados' },
 };
 
 // ─── Page transition variants ───
 const pageVariants = {
-    initial: { opacity: 0, y: 16 },
-    animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
-    exit: { opacity: 0, y: -10, transition: { duration: 0.2 } },
+    initial: { opacity: 0, y: 20, scale: 0.98 },
+    animate: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', damping: 20, stiffness: 100 } },
+    exit: { opacity: 0, scale: 0.98, transition: { duration: 0.2 } },
 };
 
 export default function App() {
@@ -57,7 +58,7 @@ export default function App() {
 
     const [view, setView] = useState('optimize');
     const [config, setConfig] = useState(DEFAULT_CONFIG);
-    const [apiKeys, setApiKeys] = useState({ claude: '', google: '' });
+    const [apiKeys, setApiKeys] = useState({ claude: '', google: '', openai: '' });
     const [library, setLibrary] = useState([]);
     const [arenaVotes, setArenaVotes] = useState({});
     const [showSettings, setShowSettings] = useState(false);
@@ -73,7 +74,7 @@ export default function App() {
             const userData = lsGet(`pm_user_${session.email}`);
             if (userData) setUser(userData);
         }
-        setApiKeys(lsGet('pm_apikeys', { claude: '', google: '' }));
+        setApiKeys(lsGet('pm_apikeys', { claude: '', google: '', openai: '' }));
         setLibrary(lsGet('pm_library', []));
         setArenaVotes(lsGet('pm_arena_votes', {}));
         const cfg = lsGet('pm_config');
@@ -179,7 +180,9 @@ export default function App() {
         return (
             <div className="auth-screen">
                 <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '42px', marginBottom: '14px' }}>⚡</div>
+                    <div style={{ width: '80px', height: '80px', margin: '0 auto 14px', borderRadius: '24px', overflow: 'hidden', boxShadow: 'var(--shadow-glow)' }}>
+                        <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
                     <div className="loading-spinner" style={{ margin: '0 auto' }} />
                     <p className="text-sm text-dim" style={{ marginTop: '14px' }}>{t('common.loading')}</p>
                 </motion.div>
@@ -194,8 +197,14 @@ export default function App() {
                 <motion.div className="auth-card card-glass" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
                     {/* Logo */}
                     <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-                        <motion.div style={{ fontSize: '42px', marginBottom: '10px' }} animate={{ rotate: [0, 5, -5, 0] }} transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}>⚡</motion.div>
-                        <h1 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 4px' }}>{t('auth.title')}</h1>
+                        <motion.div 
+                            style={{ width: '70px', height: '70px', margin: '0 auto 14px', borderRadius: '20px', overflow: 'hidden', boxShadow: 'var(--shadow-glow)' }} 
+                            animate={{ y: [0, -6, 0] }} 
+                            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                        >
+                            <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </motion.div>
+                        <h1 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 4px', background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{t('auth.title')}</h1>
                         <p className="text-sm text-dim">{t('auth.subtitle')}</p>
                     </div>
 
@@ -282,7 +291,9 @@ export default function App() {
                 transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             >
                 <div className="sidebar-logo">
-                    <div className="sidebar-logo-icon">⚡</div>
+                    <div className="sidebar-logo-icon">
+                        <img src="/logo.png" alt="Logo" />
+                    </div>
                     <div className="sidebar-logo-text">
                         <h1>Prompt Master</h1>
                         <p>v1.0</p>
@@ -380,6 +391,13 @@ export default function App() {
                                     saveToLibrary={saveToLibrary}
                                     sharedInput={sharedInput}
                                     clearSharedInput={() => setSharedInput('')}
+                                />
+                            )}
+                            {view === 'media' && (
+                                <MediaStudio
+                                    config={config}
+                                    apiKeys={apiKeys}
+                                    saveToLibrary={saveToLibrary}
                                 />
                             )}
                             {view === 'templates' && (

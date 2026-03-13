@@ -4,8 +4,15 @@
 
 export const DEFAULT_CONFIG = {
     models: {
-        claude: { id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', provider: 'anthropic', color: '#a78bfa' },
-        gemini: { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'google', color: '#34d399' },
+        claude: { id: 'claude-sonnet-4-20250514', label: 'Claude 3.5 Sonnet', provider: 'anthropic', color: '#a78bfa' },
+        opus: { id: 'claude-3-opus-20240229', label: 'Opus 4.6 Thinking', provider: 'anthropic', color: '#818cf8' },
+        gemini_pro: { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro', provider: 'google', color: '#34d399' },
+        gemini_flash: { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash', provider: 'google', color: '#6ee7b7' },
+        gpt_thinking: { id: 'gpt-4o', label: 'ChatGPT 5.4 Thinking', provider: 'openai', color: '#fca5a5' },
+        gpt_flash: { id: 'gpt-4o-mini', label: 'ChatGPT 5.3 Flash', provider: 'openai', color: '#fcd34d' },
+        nano_banana: { id: 'gemini-3.1-flash-image-preview', label: 'Nano Banana 2 (Image)', provider: 'google', color: '#fde047' },
+        nano_banana_pro: { id: 'gemini-3-pro-image-preview', label: 'Nano Banana Pro (Image)', provider: 'google', color: '#facc15' },
+        veo: { id: 'veo-3.1-generate-preview', label: 'Veo 3.1 (Video Prompt)', provider: 'google', color: '#d946ef' },
     },
     techniqueBank: [
         { id: 'role', name: 'Role Assignment', nameEs: 'Asignación de Rol', icon: '🎯', desc: 'Assign a relevant expert', descEs: 'Asigna un experto relevante', prompt: 'Assign a specific expert persona relevant to the task.' },
