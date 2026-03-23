@@ -3,11 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../i18n/LanguageContext';
 import { callModel } from '../utils/api';
 import { buildOptimizationPrompt, COACH_SYSTEM, ANALYSIS_SYSTEM } from '../utils/prompts';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedInput, clearSharedInput }) {
     const { t, lang } = useLanguage();
     const [input, setInput] = useState('');
     const [outcome, setOutcome] = useState('');
+    const [mode, setMode] = useState('standard');
     const [optimized, setOptimized] = useState('');
     const [coachNotes, setCoachNotes] = useState('');
     const [analysis, setAnalysis] = useState(null);
@@ -16,7 +19,17 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
     const [testing, setTesting] = useState(false);
     const [activeTab, setActiveTab] = useState('result');
     const [copyFeedback, setCopyFeedback] = useState(false);
+    const [showTechBank, setShowTechBank] = useState(false);
     const inputRef = useRef(null);
+
+    // Modes
+    const MODES = [
+        { id: 'standard', label: 'Standard Prompt', icon: '📄' },
+        { id: 'creative', label: 'Creative Writing', icon: '🎨' },
+        { id: 'coding', label: 'Coding & Logic', icon: '💻' },
+        { id: 'analysis', label: 'Data Analysis', icon: '📊' },
+        { id: 'research', label: 'Deep Research', icon: '🔍' },
+    ];
 
     // Handlers to auto-save to localStorage
     const handleInput = (val) => {
@@ -64,7 +77,7 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
         setTestResponse('');
         setActiveTab('result');
         try {
-            const sysPrompt = buildOptimizationPrompt(config.techniqueBank, outcome.trim());
+            const sysPrompt = buildOptimizationPrompt(config.techniqueBank, outcome.trim(), mode);
             const activeProv = config.activeProvider;
             const modelId = config.models[activeProv]?.id;
             
@@ -74,7 +87,7 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
             setOptimized('❌ Error: ' + e.message);
         }
         setLoading(false);
-    }, [input, outcome, config.techniqueBank, config.activeProvider, config.models, apiKeys]);
+    }, [input, outcome, mode, config.techniqueBank, config.activeProvider, config.models, apiKeys]);
 
     // ─── Test Drive ───
     const handleTest = useCallback(async () => {
@@ -131,8 +144,11 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
     const wordCount = input.trim().split(/\s+/).filter(Boolean).length;
 
     return (
-        <div className="flex-col gap-md">
-            {/* No API Key Warning */}
+        <div className="split-view">
+            {/* LEFT COLUMN: Input & Config */}
+            <div className="split-left flex-col gap-md" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {/* No API Key Warning */}
             {noApiKey && (
                 <motion.div className="info-box info-box-amber" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     ⚠️ {lang === 'es' ? 'Configura la API key de tu proveedor activo en el menú lateral para optimizar.' : 'Configure the API key for your active provider in the sidebar to optimize.'}
@@ -154,60 +170,114 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
                 ))}
             </div>
 
-            {/* Input Card */}
-            <motion.div className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-                <span className="label">{t('optimizer.inputLabel')}</span>
-                <textarea
-                    ref={inputRef}
-                    className="input textarea"
-                    value={input}
-                    onChange={e => handleInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleOptimize(); }}
-                    placeholder={t('optimizer.inputPlaceholder')}
-                    rows={5}
-                />
+            {/* Input Form Area */}
+            <motion.div className="optimizer-form-container" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+                
+                {/* 1. Current Prompt */}
+                <div className="input-group">
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        {lang === 'es' ? 'Tu prompt actual' : 'Your current prompt'}
+                    </span>
+                    <textarea
+                        ref={inputRef}
+                        className="input textarea"
+                        value={input}
+                        onChange={e => handleInput(e.target.value)}
+                        placeholder={t('optimizer.inputPlaceholder')}
+                        rows={4}
+                        style={{ border: 'none', background: 'rgba(0,0,0,0.2)', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)' }}
+                    />
+                </div>
 
-                {/* Expected Outcome */}
-                <div style={{ marginTop: '12px' }}>
-                    <span className="label label-accent">🎯 {t('optimizer.outcomeLabel')}</span>
+                {/* 2. Ideal Output (Optional) */}
+                <div className="input-group">
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        {lang === 'es' ? 'Describe tu output ideal' : 'Describe your ideal output'}
+                        <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 400, marginLeft: '6px' }}>
+                            ({lang === 'es' ? 'opcional pero recomendado' : 'optional but recommended'})
+                        </span>
+                    </span>
                     <textarea
                         className="input textarea"
                         value={outcome}
                         onChange={e => handleOutcome(e.target.value)}
                         placeholder={t('optimizer.outcomePlaceholder')}
                         rows={2}
-                        style={{ minHeight: '60px' }}
+                        style={{ minHeight: '60px', border: 'none', background: 'rgba(0,0,0,0.2)', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)' }}
                     />
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>{lang === 'es' ? 'MODELO ACTIVO:' : 'ACTIVE MODEL:'}</span>
-                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                                {config.activeProvider.toUpperCase()} — {config.models[config.activeProvider]?.id || 'Default'}
-                            </span>
-                        </div>
-                        <span className="char-counter" style={{ marginLeft: '8px' }}>{input.length} {t('optimizer.chars')} · {wordCount} {t('optimizer.words')}</span>
-                    </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginLeft: '4px' }}>
+                    {lang === 'es' ? 'Cuanto más específico seas sobre lo que quieres, mejor podremos optimizar el prompt.' : 'The more specific you are about what you want, the better we can optimize your prompt.'}
+                </div>
+
+                {/* Form Toolbar */}
+                <div className="optimizer-form-toolbar">
+                    <select 
+                        className="input" 
+                        value={mode} 
+                        onChange={(e) => setMode(e.target.value)}
+                    >
+                        {MODES.map(m => (
+                            <option key={m.id} value={m.id}>{m.icon} {m.label}</option>
+                        ))}
+                    </select>
+
                     <motion.button
-                        className="btn btn-primary"
+                        className="btn btn-primary btn-icon"
+                        style={{ borderRadius: '50%', width: '40px', height: '40px', padding: 0 }}
                         onClick={handleOptimize}
                         disabled={loading || !input.trim() || noApiKey}
-                        whileHover={{ scale: 1.03 }}
-                        whileTap={{ scale: 0.97 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        title={t('optimizer.optimizeBtn')}
                     >
-                        {loading ? <><span className="loading-spinner" /> {t('optimizer.optimizing')}</> : `⚡ ${t('optimizer.optimizeBtn')}`}
+                        {loading ? <span className="loading-spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} /> : '→'}
                     </motion.button>
                 </div>
             </motion.div>
 
-            {/* Results */}
+            <div className="keyboard-shortcut-hint">
+                {lang === 'es' ? 'Presiona ⌘+Enter para optimizar' : 'Press ⌘+Enter to optimize'}
+            </div>
+
+            {/* Technique Bank Accordion */}
+            <motion.div className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.10 }}>
+                <div 
+                    onClick={() => setShowTechBank(!showTechBank)}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                >
+                    <span className="label" style={{ margin: 0 }}>🧠 {config.techniqueBank.length} {t('optimizer.techniques')} API</span>
+                    <span style={{ transform: showTechBank ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s', fontSize: '12px' }}>▼</span>
+                </div>
+                
+                <AnimatePresence>
+                    {showTechBank && (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden' }}>
+                            <div className="grid-2" style={{ marginTop: '16px' }}>
+                                {config.techniqueBank.map((tech, i) => (
+                                    <div key={tech.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.015)', border: '1px solid var(--border-subtle)' }}>
+                                        <span style={{ fontSize: '16px', flexShrink: 0 }}>{tech.icon}</span>
+                                        <div>
+                                            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>{lang === 'es' ? tech.nameEs : tech.name}</div>
+                                            <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>{lang === 'es' ? tech.descEs : tech.desc}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
+        </div> {/* End Left Column */}
+
+        {/* RIGHT COLUMN: Output & Results */}
+        <div className="split-right" style={{ display: 'flex', flexDirection: 'column' }}>
             <AnimatePresence>
-                {(optimized || loading) && (
+                {(optimized || loading) ? (
                     <motion.div
                         className="card"
-                        style={{ padding: 0, overflow: 'hidden' }}
+                        style={{ padding: 0, overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}
                         initial={{ opacity: 0, y: 20, height: 0 }}
                         animate={{ opacity: 1, y: 0, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
@@ -231,9 +301,11 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
                             <AnimatePresence mode="wait">
                                 {/* Result tab */}
                                 {activeTab === 'result' && (
-                                    <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                        <div className="code-block">
-                                            {loading ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {t('optimizer.applying')}</span> : optimized}
+                                    <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                        <div className="code-block markdown-body" style={{ flex: 1, overflowY: 'auto' }}>
+                                            {loading ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {t('optimizer.applying')}</span> : (
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimized}</ReactMarkdown>
+                                            )}
                                         </div>
                                         {optimized && !loading && (
                                             <div className="btn-group" style={{ marginTop: '14px', flexWrap: 'wrap' }}>
@@ -266,8 +338,10 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
                                 {/* Test Drive tab */}
                                 {activeTab === 'test' && (
                                     <motion.div key="test" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)', padding: '16px', fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', maxHeight: '500px', overflowY: 'auto' }}>
-                                            {testing ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {lang === 'es' ? 'Esperando respuesta de la IA...' : 'Waiting for AI response...'}</span> : testResponse}
+                                        <div className="markdown-body" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)', padding: '16px', fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)', maxHeight: '500px', overflowY: 'auto' }}>
+                                            {testing ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {lang === 'es' ? 'Esperando respuesta de la IA...' : 'Waiting for AI response...'}</span> : (
+                                                testResponse ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{testResponse}</ReactMarkdown> : <span style={{ color: 'var(--text-dim)' }}>Pulsa Test Launch para probar.</span>
+                                            )}
                                         </div>
                                     </motion.div>
                                 )}
@@ -275,8 +349,8 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
                                 {/* Coach tab */}
                                 {activeTab === 'coach' && (
                                     <motion.div key="coach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)', padding: '16px', fontSize: '13px', lineHeight: '1.8', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', maxHeight: '400px', overflowY: 'auto' }}>
-                                            {coachNotes || t('optimizer.coachEmpty')}
+                                        <div className="markdown-body" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)', padding: '16px', fontSize: '14px', lineHeight: '1.8', color: 'var(--text-secondary)', maxHeight: '400px', overflowY: 'auto' }}>
+                                            {coachNotes ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{coachNotes}</ReactMarkdown> : t('optimizer.coachEmpty')}
                                         </div>
                                     </motion.div>
                                 )}
@@ -334,32 +408,17 @@ export default function OptimizerView({ config, apiKeys, saveToLibrary, sharedIn
                             </AnimatePresence>
                         </div>
                     </motion.div>
+                ) : (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.5, border: '1px dashed var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
+                         <span style={{ fontSize: '32px', marginBottom: '16px' }}>✨</span>
+                         <p style={{ color: 'var(--text-dim)', fontSize: '14px', maxWidth: '280px', textAlign: 'center' }}>
+                            {lang === 'es' ? 'Escribe tu idea a la izquierda y el Prompt Master hará su magia aquí a la derecha.' : 'Write your idea on the left and the Prompt Master will do its magic here on the right.'}
+                         </p>
+                    </div>
                 )}
             </AnimatePresence>
+        </div> {/* End Right Column */}
 
-            {/* Technique Bank */}
-            {!optimized && !loading && (
-                <motion.div className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-                    <span className="label">🧠 {config.techniqueBank.length} {t('optimizer.techniques')}</span>
-                    <div className="grid-2">
-                        {config.techniqueBank.map((tech, i) => (
-                            <motion.div
-                                key={tech.id}
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: i * 0.03 }}
-                                style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.015)', border: '1px solid var(--border-subtle)' }}
-                            >
-                                <span style={{ fontSize: '16px', flexShrink: 0 }}>{tech.icon}</span>
-                                <div>
-                                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>{lang === 'es' ? tech.nameEs : tech.name}</div>
-                                    <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>{lang === 'es' ? tech.descEs : tech.desc}</div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                </motion.div>
-            )}
         </div>
     );
 }

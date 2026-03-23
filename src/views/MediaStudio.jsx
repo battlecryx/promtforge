@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../i18n/LanguageContext';
 import { callModel } from '../utils/api';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function MediaStudio({ config, apiKeys, saveToLibrary }) {
     const { t, lang } = useLanguage();
@@ -118,8 +120,8 @@ export default function MediaStudio({ config, apiKeys, saveToLibrary }) {
                             </div>
                         ) : (
                             result?.type === 'text' ? (
-                                <div className="code-block" style={{ maxHeight: '500px', whiteSpace: 'pre-wrap' }}>
-                                    {result.data}
+                                <div className="code-block markdown-body" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.data}</ReactMarkdown>
                                 </div>
                             ) : (
                                 <div style={{ width: '100%', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>

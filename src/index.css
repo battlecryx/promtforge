@@ -307,6 +307,58 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 14px;
 }
 
+/* ─── Form Container ─── */
+.optimizer-form-container {
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+}
+
+.optimizer-form-container .input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.optimizer-form-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.optimizer-form-toolbar select.input {
+  background-color: var(--bg-card);
+  border-color: var(--border-hover);
+  border-radius: var(--radius-full);
+  padding: 8px 36px 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  width: auto;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.optimizer-form-toolbar select.input:hover {
+  background-color: var(--accent-primary-dim);
+  border-color: var(--accent-primary);
+  color: var(--text-accent);
+}
+
+.keyboard-shortcut-hint {
+  text-align: center;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+  margin-top: 16px;
+}
+
 /* ─── Labels ─── */
 .label {
   font-size: 10px;
@@ -573,6 +625,143 @@ h1, h2, h3, h4, h5, h6 {
 .gap-sm { gap: 8px; }
 .gap-md { gap: 14px; }
 .gap-lg { gap: 20px; }
+
+/* ─── Split Screen View ─── */
+.split-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: calc(100vh - 140px);
+}
+
+@media (min-width: 1024px) {
+  .split-view {
+    flex-direction: row;
+    align-items: stretch;
+  }
+  
+  .split-left {
+    width: 45%;
+    min-width: 320px;
+    max-width: 480px;
+    flex-shrink: 0;
+  }
+  
+  .split-right {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* ─── Markdown Body Typography ─── */
+.markdown-body {
+  font-family: var(--font-sans);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.markdown-body h1, 
+.markdown-body h2, 
+.markdown-body h3, 
+.markdown-body h4 {
+  color: var(--text-primary);
+  margin-top: 24px;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+.markdown-body h1 { font-size: 24px; border-bottom: 1px solid var(--border-default); padding-bottom: 8px; }
+.markdown-body h2 { font-size: 20px; }
+.markdown-body h3 { font-size: 16px; }
+
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.markdown-body strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.markdown-body a {
+  color: var(--accent-secondary);
+  text-decoration: none;
+}
+
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+
+.markdown-body ul, 
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 24px;
+}
+
+.markdown-body li {
+  margin-bottom: 6px;
+}
+
+.markdown-body li > p {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.markdown-body blockquote {
+  margin: 0 0 16px 0;
+  padding: 0 16px;
+  color: var(--text-tertiary);
+  border-left: 4px solid var(--border-hover);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--accent-primary);
+}
+
+.markdown-body pre {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  overflow: auto;
+  margin-bottom: 16px;
+}
+
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+}
+
+.markdown-body th, 
+.markdown-body td {
+  border: 1px solid var(--border-default);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.markdown-body th {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font-weight: 600;
+}
 
 /* ─── Stat Box ─── */
 .stat-box {

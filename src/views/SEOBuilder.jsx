@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../i18n/LanguageContext';
 import { callModel } from '../utils/api';
 import { buildSEOPrompt } from '../utils/prompts';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const PAGE_TYPES = ['landing', 'blog', 'ecommerce', 'portfolio', 'saas', 'local'];
 const TONES = ['professional', 'casual', 'persuasive', 'educational', 'inspirational'];
@@ -102,12 +104,14 @@ export default function SEOBuilder({ config, apiKeys, saveToLibrary }) {
     const canGenerate = fields.industry.trim() && fields.keywords.trim() && !noApiKey;
 
     return (
-        <div className="flex-col gap-md">
-            {noApiKey && (
-                <motion.div className="info-box info-box-amber" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    ⚠️ {lang === 'es' ? 'Configura la API key de tu proveedor activo en el menú lateral.' : 'Configure the API key for your active provider in the sidebar.'}
-                </motion.div>
-            )}
+        <div className="split-view">
+            {/* LEFT COLUMN: Input & Config */}
+            <div className="split-left flex-col gap-md" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {noApiKey && (
+                    <motion.div className="info-box info-box-amber" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                        ⚠️ {lang === 'es' ? 'Configura la API key de tu proveedor activo en el menú lateral.' : 'Configure the API key for your active provider in the sidebar.'}
+                    </motion.div>
+                )}
 
             {/* Quick Presets */}
             <motion.div className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -195,16 +199,19 @@ export default function SEOBuilder({ config, apiKeys, saveToLibrary }) {
                     </motion.button>
                 </div>
             </motion.div>
+        </div> {/* End left column */}
 
-            {/* Result */}
+        {/* RIGHT COLUMN: Results */}
+        <div className="split-right" style={{ display: 'flex', flexDirection: 'column' }}>
             <AnimatePresence>
-                {(result || loading) && (
+                {(result || loading) ? (
                     <motion.div
                         className="card"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
+                        initial={{ opacity: 0, y: 20, height: 0 }}
+                        animate={{ opacity: 1, y: 0, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.4 }}
+                        style={{ padding: 0, overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}
                     >
                         <div className="tabs" style={{ marginBottom: 0 }}>
                             {[
@@ -220,9 +227,11 @@ export default function SEOBuilder({ config, apiKeys, saveToLibrary }) {
                         <div style={{ padding: '18px' }}>
                             <AnimatePresence mode="wait">
                                 {activeTab === 'result' && (
-                                    <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                        <div className="code-block" style={{ maxHeight: '500px' }}>
-                                            {loading ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {t('seo.generating')}</span> : result}
+                                    <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                        <div className="code-block markdown-body" style={{ flex: 1, overflowY: 'auto', maxHeight: '500px' }}>
+                                            {loading ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {t('seo.generating')}</span> : (
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
+                                            )}
                                         </div>
                                         {result && !loading && (
                                             <div className="btn-group" style={{ marginTop: '14px', flexWrap: 'wrap' }}>
@@ -251,16 +260,27 @@ export default function SEOBuilder({ config, apiKeys, saveToLibrary }) {
 
                                 {activeTab === 'test' && (
                                     <motion.div key="test" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)', padding: '16px', fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', maxHeight: '500px', overflowY: 'auto' }}>
-                                            {testing ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {lang === 'es' ? 'Esperando respuesta de la IA...' : 'Waiting for AI response...'}</span> : testResponse}
+                                        <div className="markdown-body" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)', padding: '16px', fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)', maxHeight: '500px', overflowY: 'auto' }}>
+                                            {testing ? <span style={{ color: 'var(--accent-primary)' }}>⏳ {lang === 'es' ? 'Esperando respuesta de la IA...' : 'Waiting for AI response...'}</span> : (
+                                                testResponse ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{testResponse}</ReactMarkdown> : <span style={{ color: 'var(--text-dim)' }}>Pulsa Test Launch para probar.</span>
+                                            )}
                                         </div>
                                     </motion.div>
                                 )}
                             </AnimatePresence>
                         </div>
                     </motion.div>
+                ) : (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.5, border: '1px dashed var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
+                         <span style={{ fontSize: '32px', marginBottom: '16px' }}>📝</span>
+                         <p style={{ color: 'var(--text-dim)', fontSize: '14px', maxWidth: '280px', textAlign: 'center' }}>
+                            {lang === 'es' ? 'Rellena los campos a la izquierda y tu plantilla SEO optimizada aparecerá aquí.' : 'Fill the fields on the left and your optimized SEO template will appear here.'}
+                         </p>
+                    </div>
                 )}
             </AnimatePresence>
+        </div> {/* End right column */}
+        
         </div>
     );
 }

@@ -7,7 +7,7 @@
  * In dev: proxied via Vite (/api/claude -> api.anthropic.com)
  * In prod: requires a backend proxy or Firebase Cloud Function
  */
-export async function callClaude(systemPrompt, userMessage, apiKey, modelId = 'claude-sonnet-4-20250514') {
+export async function callAnthropic(systemPrompt, userMessage, apiKey, modelId = 'claude-sonnet-4-6') {
     if (!apiKey) throw new Error('Claude API key not configured');
 
     const isDev = import.meta.env.DEV;
@@ -41,7 +41,7 @@ export async function callClaude(systemPrompt, userMessage, apiKey, modelId = 'c
  * Call Gemini (Google) API
  * Works directly from the browser — no proxy needed
  */
-export async function callGemini(systemPrompt, userMessage, apiKey, modelId = 'gemini-2.5-flash') {
+export async function callGemini(systemPrompt, userMessage, apiKey, modelId = 'gemini-3.1-pro-preview') {
     if (!apiKey) throw new Error('Gemini API key not configured');
 
     const res = await fetch(
@@ -69,7 +69,7 @@ export async function callGemini(systemPrompt, userMessage, apiKey, modelId = 'g
 /**
  * Call OpenAI API
  */
-export async function callOpenAI(systemPrompt, userMessage, apiKey, modelId = 'gpt-4o') {
+export async function callOpenAI(systemPrompt, userMessage, apiKey, modelId = 'gpt-5.4') {
     if (!apiKey) throw new Error('OpenAI API key not configured');
 
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -130,7 +130,7 @@ export async function callPerplexity(systemPrompt, userMessage, apiKey, modelId 
 /**
  * Call xAI (Grok) API
  */
-export async function callXAI(systemPrompt, userMessage, apiKey, modelId = 'grok-2-latest') {
+export async function callXAI(systemPrompt, userMessage, apiKey, modelId = 'grok-4.20-beta') {
     if (!apiKey) throw new Error('xAI API key not configured');
 
     const res = await fetch('https://api.x.ai/v1/chat/completions', {
@@ -162,7 +162,7 @@ export async function callXAI(systemPrompt, userMessage, apiKey, modelId = 'grok
  */
 export async function callModel(provider, systemPrompt, userMessage, apiKeys, models) {
     if (provider === 'anthropic') {
-        return callClaude(systemPrompt, userMessage, apiKeys.anthropic || apiKeys.claude, models);
+        return callAnthropic(systemPrompt, userMessage, apiKeys.anthropic || apiKeys.claude, models);
     } else if (provider === 'google') {
         return callGemini(systemPrompt, userMessage, apiKeys.google, models);
     } else if (provider === 'openai') {
@@ -181,11 +181,11 @@ export async function callModel(provider, systemPrompt, userMessage, apiKeys, mo
 
 // Fallback manual lists just in case
 const FALLBACKS = {
-    openai: ['o3-mini', 'o1', 'o1-mini', 'o1-preview', 'gpt-4o', 'gpt-4.5-preview', 'gpt-4o-mini'],
-    anthropic: ['claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest', 'claude-3-opus-latest'],
-    google: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3.1-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'],
-    perplexity: ['sonar-reasoning-pro', 'sonar-reasoning', 'sonar-pro', 'sonar'],
-    xai: ['grok-2-latest', 'grok-2-vision-latest']
+    openai: ['gpt-5.4', 'gpt-5.4-pro', 'gpt-5.1', 'o3-mini', 'gpt-4.1', 'gpt-4o'],
+    anthropic: ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-sonnet-4-5', 'claude-opus-4-5'],
+    google: ['gemini-3.1-pro-preview', 'gemini-3.1-flash-lite-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'],
+    perplexity: ['sonar-reasoning-pro', 'sonar-pro', 'sonar', 'sonar-deep-research'],
+    xai: ['grok-4.20-beta', 'grok-4.1-fast', 'grok-3-mini']
 };
 
 export async function fetchProviderModels(provider, apiKey) {

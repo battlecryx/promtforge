@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { useLanguage } from '../i18n/LanguageContext';
 import { callModel } from '../utils/api';
 import { buildOptimizationPrompt } from '../utils/prompts';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function ArenaView({ config, apiKeys, arenaVotes, handleVote, saveToLibrary, sharedInput, clearSharedInput }) {
     const { t, lang } = useLanguage();
@@ -121,8 +123,12 @@ export default function ArenaView({ config, apiKeys, arenaVotes, handleVote, sav
                             </div>
 
                             {/* Result */}
-                            <div className="code-block" style={{ minHeight: '140px', maxHeight: '320px', color: 'var(--text-secondary)' }}>
-                                {isModelLoading ? t('arena.optimizing') : modelResult || t('arena.resultPlaceholder')}
+                            <div className="code-block markdown-body" style={{ minHeight: '140px', maxHeight: '320px', overflowY: 'auto' }}>
+                                {isModelLoading ? (
+                                    <span style={{ color: dotColor }}>{t('arena.optimizing')}</span>
+                                ) : (
+                                    modelResult ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{modelResult}</ReactMarkdown> : <span style={{ color: 'var(--text-dim)' }}>{t('arena.resultPlaceholder')}</span>
+                                )}
                             </div>
 
                             {/* Actions */}

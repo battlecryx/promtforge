@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from './i18n/LanguageContext';
 import { DEFAULT_CONFIG } from './utils/prompts';
-import SidebarModelSelector from './components/SidebarModelSelector';
+import GlobalTargetModal from './components/GlobalTargetModal';
 import OptimizerView from './views/OptimizerView';
 import ArenaView from './views/ArenaView';
 import MediaStudio from './views/MediaStudio';
@@ -64,6 +64,7 @@ export default function App() {
     const [arenaVotes, setArenaVotes] = useState({});
     const [showSettings, setShowSettings] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [isModelModalOpen, setIsModelModalOpen] = useState(false); // Global Modal state
 
     // Shared input state (so templates can set it)
     const [sharedInput, setSharedInput] = useState('');
@@ -281,6 +282,20 @@ export default function App() {
             <div className="ambient-bg ambient-blob-1" />
             <div className="ambient-bg ambient-blob-2" />
 
+            {/* Global Modals */}
+            <AnimatePresence>
+                {isModelModalOpen && (
+                    <GlobalTargetModal
+                        isOpen={isModelModalOpen}
+                        onClose={() => setIsModelModalOpen(false)}
+                        apiKeys={apiKeys}
+                        saveApiKeys={saveApiKeys}
+                        config={config}
+                        saveConfig={saveConfig}
+                    />
+                )}
+            </AnimatePresence>
+
             {/* Mobile Overlay */}
             <div className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />
 
@@ -301,13 +316,20 @@ export default function App() {
                     </div>
                 </div>
 
-                <div style={{ marginTop: '20px' }}>
-                    <SidebarModelSelector 
-                        apiKeys={apiKeys} 
-                        saveApiKeys={saveApiKeys} 
-                        config={config} 
-                        saveConfig={saveConfig} 
-                    />
+                <div style={{ marginTop: '20px', padding: '0 12px', marginBottom: '16px' }}>
+                    <motion.div 
+                        onClick={() => setIsModelModalOpen(true)}
+                        className="btn"
+                        style={{ width: '100%', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-subtle)' }}
+                        whileHover={{ scale: 1.02, background: 'rgba(255,255,255,0.06)' }}
+                        whileTap={{ scale: 0.98 }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontWeight: 600 }}>{lang === 'es' ? 'MOTOR:' : 'ENGINE:'}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>{config.activeProvider.toUpperCase()}</span>
+                        </div>
+                        <span style={{ fontSize: '14px' }}>⚙️</span>
+                    </motion.div>
                 </div>
 
                 <nav className="sidebar-nav">

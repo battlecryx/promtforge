@@ -4,15 +4,11 @@
 
 export const DEFAULT_CONFIG = {
     models: {
-        claude: { id: 'claude-sonnet-4-20250514', label: 'Claude 3.5 Sonnet', provider: 'anthropic', color: '#a78bfa' },
-        opus: { id: 'claude-3-opus-20240229', label: 'Opus 4.6 Thinking', provider: 'anthropic', color: '#818cf8' },
-        gemini_pro: { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro', provider: 'google', color: '#34d399' },
-        gemini_flash: { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash', provider: 'google', color: '#6ee7b7' },
-        gpt_thinking: { id: 'gpt-4o', label: 'ChatGPT 5.4 Thinking', provider: 'openai', color: '#fca5a5' },
-        gpt_flash: { id: 'gpt-4o-mini', label: 'ChatGPT 5.3 Flash', provider: 'openai', color: '#fcd34d' },
-        nano_banana: { id: 'gemini-3.1-flash-image-preview', label: 'Nano Banana 2 (Image)', provider: 'google', color: '#fde047' },
-        nano_banana_pro: { id: 'gemini-3-pro-image-preview', label: 'Nano Banana Pro (Image)', provider: 'google', color: '#facc15' },
-        veo: { id: 'veo-3.1-generate-preview', label: 'Veo 3.1 (Video Prompt)', provider: 'google', color: '#d946ef' },
+        anthropic: { id: 'claude-sonnet-4-6', label: 'Claude 4.6 Sonnet', provider: 'anthropic', color: '#a78bfa' },
+        google: { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro', provider: 'google', color: '#34d399' },
+        openai: { id: 'gpt-5.4', label: 'ChatGPT 5.4', provider: 'openai', color: '#fca5a5' },
+        perplexity: { id: 'sonar-pro', label: 'Sonar Pro', provider: 'perplexity', color: '#25ced1' },
+        xai: { id: 'grok-4.20-beta', label: 'Grok 4.20 Beta', provider: 'xai', color: '#000000' }
     },
     techniqueBank: [
         { id: 'role', name: 'Role Assignment', nameEs: 'Asignación de Rol', icon: '🎯', desc: 'Assign a relevant expert', descEs: 'Asigna un experto relevante', prompt: 'Assign a specific expert persona relevant to the task.' },
@@ -29,14 +25,32 @@ export const DEFAULT_CONFIG = {
 };
 
 /**
- * Build the optimization system prompt with optional outcome focus
+ * Build the optimization system prompt with optional outcome focus and mode context
  */
-export function buildOptimizationPrompt(techniques, expectedOutcome = '') {
+export function buildOptimizationPrompt(techniques, expectedOutcome = '', mode = 'standard') {
     const techInstructions = techniques.map((t, i) => `${i + 1}. **${t.name}**: ${t.prompt}`).join('\n');
 
     const outcomeSection = expectedOutcome
-        ? `\n\nEXPECTED OUTCOME FOCUS:\nThe user has specified they want the output to achieve: "${expectedOutcome}"\nMake sure the optimized prompt explicitly guides the AI to produce this type of result.`
+        ? `\n\nEXPECTED OUTCOME FOCUS:\nThe user has specified they want the final output to achieve: "${expectedOutcome}"\nMake sure the optimized prompt explicitly instructs the AI to produce this exact type of result.`
         : '';
+
+    let modeRules = '';
+    switch(mode) {
+        case 'creative':
+            modeRules = '- The optimized prompt must focus on storytelling, creative angles, vivid details, and emotional resonance.';
+            break;
+        case 'coding':
+            modeRules = '- The optimized prompt must demand clean architecture, comments, edge cases handling, and specific technology stacks.';
+            break;
+        case 'analysis':
+            modeRules = '- The optimized prompt must request data structuring, identification of trends, statistical reasoning, and actionable insights.';
+            break;
+        case 'research':
+            modeRules = '- The optimized prompt must instruct the model to gather comprehensive facts, cite sources, list pros/cons, and synthesize complex information.';
+            break;
+        default:
+            modeRules = '- Make the optimized prompt highly specific, clear, and actionable.';
+    }
 
     return `You are an elite prompt engineer. Transform the user's rough prompt into a highly optimized, production-grade prompt.
 
@@ -50,7 +64,7 @@ CRITICAL RULES:
 - The output must be ready to copy-paste directly into any AI
 - Write the optimized prompt in the SAME LANGUAGE as the original
 - Make it significantly better than the original while preserving the user's intent
-- If an expected outcome was specified, tailor the prompt to achieve it precisely`;
+${modeRules}`;
 }
 
 export const COACH_SYSTEM = `You are a prompt engineering teacher. The user will give you an original prompt and its optimized version. Explain EACH improvement made, why it matters, and what technique was applied. Be educational but concise. Use the SAME LANGUAGE as the prompts. Format as a numbered list of changes with brief explanations. Max 8 items.`;
